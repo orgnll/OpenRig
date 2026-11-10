@@ -47,8 +47,9 @@ handshake, every command and notification.
 
 ## Status
 
-Tested against the protocol and in demo mode. Real-hardware testing is ongoing. If something
-misbehaves, open **Device → Packet log**, reproduce it, and include the log in an issue.
+Confirmed working on a real Switch² from iPhone (iOS 18, Bluefy): pairing, presets, heating and
+lights. Broader testing is ongoing. Android/Chrome and the usage stats haven't been confirmed yet.
+If something misbehaves, open **Device → Packet log**, reproduce it, and include the log in an issue.
 
 ## License
 
