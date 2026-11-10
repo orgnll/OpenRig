@@ -249,7 +249,9 @@ setTimeout(function(){ if(!window.__appStarted) __diag('App script did not start
 </script>
 
 <script>
+(function(){ // private scope: avoids name clashes with scripts the browser injects (e.g. Bluefy)
 'use strict';
+try{
 /* =====================================================================
    PROTOCOL — Dr. Dabber Switch² over Bluetooth LE
    Clean-room description; see PROTOCOL.md for the full write-up.
@@ -722,6 +724,8 @@ function checkSupport(){ const w=$('noBle');
     w.classList.remove('hidden'); $('btnConnect').disabled=true; $('btnConnect').style.opacity=.4; } }
 
 buildStatic(); bind(); checkSupport(); refreshReconnect(); render(); window.__appStarted=true;
+}catch(err){ window.__diag && __diag('Startup error: '+(err&&err.stack||err)); }
+})();
 </script>
 </body>
 </html>
