@@ -1,4 +1,4 @@
-OpenRig: an open-source controller for the Dr. Dabber Switch²
+# OpenRig: an open-source controller for the Dr. Dabber Switch²
 
 A fast, login-free web app for the Switch² e-rig. It's a single HTML file with no build step, no
 account, and no tracking.

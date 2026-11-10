@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0d0f12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>OpenRig · Switch² controller</title>
+<style>
+:root{
+  --bg:#0d0f12; --panel:#15181d; --panel2:#1c2027; --line:#262b33;
+  --text:#eef1f5; --dim:#8b93a1; --faint:#5b6370;
+  --heat:#ff7a2f; --heat2:#ffb03a; --cool:#4cc9f0; --ok:#3ddc97; --bad:#ff5c6c;
+  --r:16px; --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;overscroll-behavior:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input{font:inherit;color:inherit}
+.app{max-width:520px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;padding-top:var(--safe-t)}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 6px}
+.brand{font-weight:700;letter-spacing:.2px;font-size:17px}
+.brand small{color:var(--faint);font-weight:500;margin-left:6px;font-size:12px}
+.pill{display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:13px;color:var(--dim)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.dot.busy{background:var(--heat2);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+main{flex:1;padding:6px 14px calc(92px + var(--safe-b));display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.card h3{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.hidden{display:none!important}
+/* hero */
+.hero{display:flex;flex-direction:column;align-items:center;padding:18px 16px 16px;position:relative;overflow:hidden}
+.ring{position:relative;width:220px;height:220px}
+.ring svg{width:100%;height:100%;transform:rotate(135deg);pointer-events:none}
+.ring .center{pointer-events:none}
+.ring .track{stroke:var(--panel2)}
+.ring .prog{stroke:url(#heatgrad);transition:stroke-dashoffset .25s linear}
+.ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.big{font-size:58px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-1.5px;line-height:1}
+.big sup{font-size:22px;font-weight:600;color:var(--dim);margin-left:2px;vertical-align:top;position:relative;top:8px}
+.sub{color:var(--dim);font-size:13px;margin-top:6px;text-align:center}
+.statusline{margin-top:4px;font-size:14px;font-weight:600;min-height:20px}
+.statusline.heat{color:var(--heat2)}
+.go{margin-top:12px;width:100%;padding:16px;border-radius:14px;font-weight:700;font-size:17px;background:linear-gradient(135deg,var(--heat),var(--heat2));color:#1a0d00;transition:transform .08s}
+.go:active{transform:scale(.98)}
+.go.stop{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+.go:disabled{opacity:.4}
+.meta{display:flex;gap:14px;margin-top:12px;color:var(--dim);font-size:13px}
+.meta b{color:var(--text);font-weight:600}
+/* presets */
+.presets{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.preset{background:var(--panel2);border:1.5px solid transparent;border-radius:12px;padding:10px 4px 9px;text-align:center;position:relative;transition:border-color .12s,background .12s}
+.preset .n{font-size:11px;color:var(--faint);font-weight:600}
+.preset .t{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.preset .p{font-size:10.5px;color:var(--dim);margin-top:1px}
+.preset.active{border-color:var(--heat);background:rgba(255,122,47,.09)}
+.preset.editing{box-shadow:0 0 0 2px rgba(255,255,255,.12) inset}
+.preset .sync{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--heat2);opacity:0;transition:opacity .15s}
+.preset .sync.on{opacity:1;animation:pulse .8s infinite}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.row+.row{margin-top:14px}
+.lbl{color:var(--dim);font-size:13.5px}
+.val{font-weight:700;font-variant-numeric:tabular-nums}
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper button{width:40px;height:40px;border-radius:12px;background:var(--panel2);font-size:20px;font-weight:600;border:1px solid var(--line)}
+.stepper button:active{background:var(--line)}
+.stepper .val{min-width:70px;text-align:center;font-size:22px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:36px;background:transparent;margin:4px 0 0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--cool),var(--heat2),var(--heat))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:#fff;margin-top:-10px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--cool),var(--heat2),var(--heat))}
+input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:0}
+input[type=range].plain::-webkit-slider-runnable-track{background:var(--panel2)}
+input[type=range].plain::-moz-range-track{background:var(--panel2)}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.seg button{background:var(--panel2);border:1.5px solid transparent;border-radius:11px;padding:9px 4px 7px;font-size:12.5px;font-weight:600;color:var(--dim);display:flex;flex-direction:column;align-items:center;gap:3px}
+.seg button svg{width:44px;height:18px}
+.seg button.on{border-color:var(--heat);color:var(--text);background:rgba(255,122,47,.09)}
+.hint{color:var(--faint);font-size:12.5px;margin-top:10px;min-height:16px}
+/* custom curve */
+.curve{width:100%;height:120px;background:var(--panel2);border-radius:12px;margin-top:10px}
+.pts{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 10px;margin-top:10px;align-items:center;font-size:13px}
+.pts input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px;text-align:center;font-variant-numeric:tabular-nums}
+.pts .h{color:var(--faint);font-size:11.5px;text-transform:uppercase;letter-spacing:.6px}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-weight:600;width:100%}
+.btn.primary{background:var(--heat);color:#1a0d00;border-color:transparent}
+.btn:active{opacity:.8}
+/* lights */
+.lights{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.light{border-radius:12px;padding:12px 6px;font-size:12.5px;font-weight:600;text-align:center;background:var(--panel2);border:1.5px solid transparent;position:relative;overflow:hidden}
+.light .sw{height:22px;border-radius:7px;margin-bottom:7px}
+.light.on{border-color:#fff}
+.toggle{width:50px;height:30px;border-radius:15px;background:var(--panel2);border:1px solid var(--line);position:relative;transition:background .15s;flex:none}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .15s}
+.toggle.on{background:var(--ok)}
+.toggle.on::after{transform:translateX(20px)}
+.unit{display:flex;background:var(--panel2);border-radius:10px;padding:3px;border:1px solid var(--line)}
+.unit button{padding:6px 14px;border-radius:8px;font-weight:700;color:var(--dim)}
+.unit button.on{background:var(--line);color:var(--text)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{background:var(--panel2);border-radius:12px;padding:12px}
+.stat .k{color:var(--faint);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px}
+.stat .v{font-size:19px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
+.kv div:nth-child(odd){color:var(--dim)}
+.kv div:nth-child(even){text-align:right;font-variant-numeric:tabular-nums;word-break:break-all}
+pre.log{background:#090a0c;border:1px solid var(--line);border-radius:10px;padding:10px;font:11px/1.45 ui-monospace,Menlo,monospace;color:#9fb0c3;max-height:220px;overflow:auto;margin:10px 0 0;white-space:pre-wrap}
+/* connect screen */
+.connect{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:24px 22px;gap:14px}
+.connect h1{font-size:28px;margin:0;letter-spacing:-.5px}
+.connect p{color:var(--dim);margin:0;max-width:340px}
+.connect .btn{max-width:320px}
+.warn{background:rgba(255,92,108,.08);border:1px solid rgba(255,92,108,.35);color:#ffb3bb;border-radius:12px;padding:12px;font-size:13px;max-width:360px;text-align:left}
+.foot{color:var(--faint);font-size:11.5px;max-width:340px}
+/* nav */
+nav{position:fixed;left:0;right:0;bottom:0;background:rgba(13,15,18,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:8px 0 calc(8px + var(--safe-b));z-index:5}
+nav .in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr)}
+nav button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--faint);padding:4px 0}
+nav button svg{width:24px;height:24px}
+nav button.on{color:var(--text)}
+.toast{position:fixed;left:50%;bottom:calc(92px + var(--safe-b));transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);padding:10px 16px;border-radius:12px;font-size:13.5px;opacity:0;transition:all .2s;pointer-events:none;z-index:9;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">OpenRig<small>for Switch²</small></div>
+    <button class="pill" id="connPill"><span class="dot" id="connDot"></span><span id="connText">Not connected</span></button>
+  </header>
+
+  <!-- CONNECT -->
+  <section class="connect" id="vConnect">
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="28" stroke="#262b33" stroke-width="6"/><path d="M32 4a28 28 0 0 1 28 28" stroke="url(#g0)" stroke-width="6" stroke-linecap="round"/><defs><linearGradient id="g0" x1="32" y1="4" x2="60" y2="32"><stop stop-color="#ffb03a"/><stop offset="1" stop-color="#ff7a2f"/></linearGradient></defs></svg>
+    <h1>Connect your rig</h1>
+    <p>Turn the Switch² on and keep it close. No account, no login.</p>
+    <div class="warn hidden" id="noBle"></div>
+    <button class="btn primary" id="btnConnect">Connect</button>
+    <button class="btn hidden" id="btnReconnect">Reconnect</button>
+    <button class="btn" id="btnDemo">Try demo mode</button>
+    <div class="foot">Unofficial, open-source controller. Not affiliated with Dr. Dabber. Firmware updates and factory reset are left to the official app.</div>
+  </section>
+
+  <!-- MAIN -->
+  <main id="vMain" class="hidden">
+    <!-- HOME TAB -->
+    <div id="tHome">
+      <div class="card hero">
+        <div class="ring">
+          <svg viewBox="0 0 220 220">
+            <defs><linearGradient id="heatgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb03a"/><stop offset="1" stop-color="#ff7a2f"/></linearGradient></defs>
+            <circle class="track" cx="110" cy="110" r="96" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="452.4 603.2"/>
+            <circle class="prog" id="ringProg" cx="110" cy="110" r="96" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="452.4 603.2" stroke-dashoffset="452.4"/>
+          </svg>
+          <div class="center">
+            <div class="big" id="liveTemp">--<sup>°F</sup></div>
+            <div class="sub" id="targetTemp">Target --</div>
+            <div class="statusline" id="statusLine">Idle</div>
+          </div>
+        </div>
+        <button class="go" id="btnGo">Start heating</button>
+        <div class="meta"><span>Battery <b id="mBatt">--</b></span><span>Lights <b id="mLight">--</b></span><span>Preset <b id="mPreset">--</b></span></div>
+      </div>
+
+      <div class="card">
+        <h3>Presets <span style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--faint)">tap to use · tap again to edit</span></h3>
+        <div class="presets" id="presets"></div>
+      </div>
+
+      <div class="card" id="editor">
+        <h3><span id="edTitle">Preset 1</span><span id="edSync" style="text-transform:none;letter-spacing:0;font-weight:500"></span></h3>
+        <div class="row"><span class="lbl">Temperature</span>
+          <div class="stepper"><button data-step="temp" data-d="-5">−</button><span class="val" id="edTemp">--</span><button data-step="temp" data-d="5">+</button></div></div>
+        <input type="range" id="edTempR" step="1">
+        <div class="row"><span class="lbl">Hold time</span>
+          <div class="stepper"><button data-step="hold" data-d="-5">−</button><span class="val" id="edHold">--</span><button data-step="hold" data-d="5">+</button></div></div>
+        <input type="range" id="edHoldR" class="plain" min="10" max="90" step="1">
+        <div class="row" style="margin-top:6px"><span class="lbl">Heating mode</span></div>
+        <div class="seg" id="profiles" style="margin-top:8px"></div>
+        <div class="hint" id="profHint"></div>
+        <div id="customBox" class="hidden">
+          <svg class="curve" id="curve" viewBox="0 0 300 120"></svg>
+          <div class="pts" id="pts"></div>
+          <button class="btn primary" id="btnSaveCurve" style="margin-top:10px">Send custom curve</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- LIGHTS TAB -->
+    <div id="tLights" class="hidden">
+      <div class="card">
+        <h3>Brightness <span class="val" id="briVal" style="color:var(--text)">--</span></h3>
+        <input type="range" id="bri" class="plain" min="0" max="100" step="1">
+      </div>
+      <div class="card"><h3>Solid</h3><div class="lights" id="lightsSolid"></div></div>
+      <div class="card"><h3>Themes</h3><div class="lights" id="lightsTheme"></div></div>
+    </div>
+
+    <!-- DEVICE TAB -->
+    <div id="tDevice" class="hidden">
+      <div class="card">
+        <h3>Settings</h3>
+        <div class="row"><span class="lbl">Temperature unit</span><div class="unit" id="unitSel"><button data-u="F">°F</button><button data-u="C">°C</button></div></div>
+        <div class="row"><span class="lbl">Haptic feedback</span><button class="toggle" id="tgHaptic"></button></div>
+        <div class="row"><span class="lbl">Auto shut-off</span><div class="stepper"><button data-step="aso" data-d="-1">−</button><span class="val" id="asoVal" style="font-size:17px;min-width:80px">--</span><button data-step="aso" data-d="1">+</button></div></div>
+        <div class="row"><span class="lbl">Session extend</span><div class="stepper"><button data-step="ext" data-d="-1">−</button><span class="val" id="extVal" style="font-size:17px;min-width:80px">--</span><button data-step="ext" data-d="1">+</button></div></div>
+      </div>
+      <div class="card">
+        <h3>Cleaning assist</h3>
+        <div class="lbl">Heats the insert briefly (about 200°F for 30 s) so build-up loosens and the insert is easier to remove.</div>
+        <button class="btn" id="btnClean" style="margin-top:12px">Start cleaning assist</button>
+      </div>
+      <div class="card">
+        <h3>Usage <button id="btnStats" style="color:var(--heat2);text-transform:none;letter-spacing:0;font-size:13px">Refresh</button></h3>
+        <div class="stats" id="stats"></div>
+      </div>
+      <div class="card">
+        <h3>Device</h3>
+        <div class="kv" id="devInfo"></div>
+        <div class="row" style="margin-top:14px"><span class="lbl">Write pacing</span><div class="unit" id="paceSel"><button data-p="40">Fast</button><button data-p="90">Normal</button><button data-p="250">Safe</button></div></div>
+        <div class="hint">If changes sometimes don't stick, switch to Safe.</div>
+        <div class="row" style="margin-top:10px"><span class="lbl">Rename rig</span></div>
+        <div style="display:flex;gap:8px;margin-top:8px"><input id="nameIn" maxlength="29" placeholder="Name" style="flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px"><button class="btn" id="btnName" style="width:auto">Save</button></div>
+        <button class="btn" id="btnDisconnect" style="margin-top:14px">Disconnect</button>
+        <details style="margin-top:12px"><summary class="lbl" style="cursor:pointer">Packet log</summary><pre class="log" id="log"></pre></details>
+      </div>
+    </div>
+  </main>
+
+  <nav id="nav" class="hidden"><div class="in">
+    <button data-tab="Home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3c2 3.5 6 6 6 11a6 6 0 0 1-12 0c0-3 1.5-4.5 3-6 0 2 1 3 2 3 0-3 0-5 1-8z"/></svg>Heat</button>
+    <button data-tab="Lights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Lights</button>
+    <button data-tab="Device"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Device</button>
+  </div></nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   PROTOCOL — Dr. Dabber Switch² over Bluetooth LE
+   Clean-room description; see PROTOCOL.md for the full write-up.
+   ===================================================================== */
+const UUID = {
+  svc:    '0000fee7-0000-1000-8000-00805f9b34fb',  // main service
+  write:  '0000fec1-0000-1000-8000-00805f9b34fb',  // app -> rig
+  notify: '0000fec2-0000-1000-8000-00805f9b34fb',  // rig -> app
+  info:   '0000180a-0000-1000-8000-00805f9b34fb',
+  model:  '00002a24-0000-1000-8000-00805f9b34fb',
+  serial: '00002a25-0000-1000-8000-00805f9b34fb',
+  hw:     '00002a27-0000-1000-8000-00805f9b34fb',
+  sw:     '00002a28-0000-1000-8000-00805f9b34fb',
+  mfr:    '00002a29-0000-1000-8000-00805f9b34fb',
+  ota:    'e5c7a653-7e52-4b06-af32-960455084ae3',
+  battery:'0000180f-0000-1000-8000-00805f9b34fb',
+};
+const AUTH_KEY = '61e2128b5bb08da1a4f0efeecd6ffd24ff384274';
+const LIMITS = { F:{min:250,max:650}, C:{min:121,max:343}, hold:{min:10,max:90}, aso:{min:1,max:60}, ext:{min:0,max:9} };
+const PROFILES = [
+  {id:161,name:'Steady', desc:'Holds one temperature no matter how hard you pull.', pts:[[0,.5],[1,.5]]},
+  {id:177,name:'Ascent', desc:'Climbs steadily through the hold, like torching as you inhale.', pts:[[0,.8],[1,.2]]},
+  {id:193,name:'Descent',desc:'Cools as time passes, like a banger after the torch.', pts:[[0,.2],[1,.8]]},
+  {id:209,name:'Valley', desc:'Dips gently for terpene-forward flavor, then recovers.', pts:[[0,.3],[.5,.8],[1,.3]]},
+  {id:225,name:'Hill',   desc:'Rises for vapor production, then eases off for a smooth finish.', pts:[[0,.75],[.5,.2],[1,.75]]},
+  {id:241,name:'Custom', desc:'Your own six-point curve.', pts:[[0,.7],[.3,.3],[.6,.55],[1,.2]]},
+];
+const LIGHTS = {0:'Stealth',1:'Calm',2:'Purple',3:'Blue',4:'Cyan',5:'Green',6:'Yellow',7:'Orange',8:'Red',9:'Pink',
+  10:'Cali Sunset',11:'Purple Haze',12:'Northern Lights',13:'Vegas Nights',14:'Blue Dream',15:'Strawberry Cough',16:'Florida Groves',17:'Lime Light',
+  24:'Blue Cheese',25:'Golden Goat',26:'Grape Ape',27:'Miami Vice',28:'Purple Urkle',29:'Candy Corn',30:'Redrum',31:'Skull & Bones',32:'Witches Brew',33:'Jack-O-Lantern'};
+const LIGHT_SW = {0:'#111',1:'linear-gradient(90deg,#c9d6ff,#e2e2e2)',2:'#8e44ff',3:'#2f6bff',4:'#22d3ee',5:'#22c55e',6:'#facc15',7:'#fb923c',8:'#ef4444',9:'#f472b6',
+  10:'linear-gradient(90deg,#ff5f6d,#ffc371)',11:'linear-gradient(90deg,#7b2ff7,#f107a3)',12:'linear-gradient(90deg,#00c9a7,#845ec2)',13:'linear-gradient(90deg,#ff0080,#7928ca,#00d4ff)',
+  14:'linear-gradient(90deg,#2193b0,#6dd5ed)',15:'linear-gradient(90deg,#ff416c,#ff4b2b,#a8e063)',16:'linear-gradient(90deg,#f7971e,#ffd200,#56ab2f)',17:'linear-gradient(90deg,#a8ff78,#78ffd6)',
+  24:'linear-gradient(90deg,#3a7bd5,#fffde4)',25:'linear-gradient(90deg,#f7b733,#fc4a1a)',26:'linear-gradient(90deg,#5f2c82,#49a09d)',27:'linear-gradient(90deg,#ff61d2,#00e5ff)',
+  28:'linear-gradient(90deg,#41295a,#2f0743)',29:'linear-gradient(90deg,#fff,#ffb703,#fb8500)',30:'linear-gradient(90deg,#430000,#ff0000)',31:'linear-gradient(90deg,#222,#ddd)',
+  32:'linear-gradient(90deg,#1d976c,#93f9b9,#5b2a86)',33:'linear-gradient(90deg,#ff7518,#3b1f00)'};
+const SOLID_IDS = [0,1,2,3,4,5,6,7,8,9];
+
+const toC = f => Math.round(5*(f-32)/9);
+const toF = c => Math.round(9*c/5+32);
+const hi = n => (n>>8)&255, lo = n => n&255;
+const u16 = (b,i) => (b[i]<<8)|b[i+1];
+const u32 = (b,i) => ((b[i]<<24)|(b[i+1]<<16)|(b[i+2]<<8)|b[i+3])>>>0;
+const hex = b => Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');
+const unhex = s => { const o=[]; for(let i=0;i<s.length;i+=2) o.push(parseInt(s.substr(i,2),16)); return o; };
+
+/* Packet builders (app -> rig). Every packet is [CMD, LEN, ...payload, CMD]. */
+const Pkt = {
+  clock(d=new Date()){ const y=d.getUTCFullYear(); return [177,9,hi(y),lo(y),d.getUTCMonth()+1,d.getUTCDate(),d.getUTCHours(),d.getUTCMinutes(),177]; },
+  analytics(){ return [178,4,255,178]; },
+  temp(p,F,C){ return [179,8,p,hi(F),lo(F),hi(C),lo(C),179]; },
+  profile(p,id){ return [181,5,p,id,181]; },
+  hold(p,s){ return [183,6,p,hi(s),lo(s),183]; },
+  settings(s){ return [185,20,0,s.preset,0,0,s.light,0,s.aso,s.unit==='F'?15:12,s.session?170:0,s.haptic?170:0,s.ext,s.bri,0,0,0,0,0,185]; },
+  custom(p,points){ // up to 6 points {time,F,C}; returns two packets
+    const pt=i=>points[i]||{time:0,F:0,C:0}, enc=i=>[hi(pt(i).F),lo(pt(i).F),hi(pt(i).C),lo(pt(i).C),pt(i).time&255];
+    return [[186,19,p,...enc(0),...enc(1),...enc(2),186],[187,19,p,...enc(3),...enc(4),...enc(5),187]];
+  },
+  cleaning(on){ return [198,4,on?170:0,198]; },
+  name(str){ const c=i=>str.charCodeAt(i)&255||0, a=[],b=[];
+    for(let i=0;i<17;i++)a.push(c(i)); for(let i=17;i<29;i++)b.push(c(i));
+    return [[209,20,...a,209],[210,15,...b,210]]; },
+};
+
+/* Auth handshake (one-time per connection). The rig uses a smart-lock style
+   framing: ff02 | len(2)+~len(2) | op(2) | sha1(key+nonce)(20) | nonce(8) | crc16 */
+function crc16(bytes){ let e=0; for(const o of bytes){ for(let t=0;t<8;t++){ e=(e&32768)?((2*e)^32773):e*2; if(o&(128>>t)) e^=32773; if(e>65536) e-=65536; } } e&=65535; return e.toString(16).padStart(4,'0'); }
+function lenField(n){ return n.toString(16).padStart(4,'0') + ((4294967295^n)>>>0).toString(16).slice(-4); }
+function frame(hexStr){ const out=[], mask=[0,32,64,96]; let u=0,a=0; const n=hexStr.length;
+  for(;;){ const end=u+36, l=end<n?36:n-u, s=hexStr.slice(u,u+l);
+    const head=(l===36&&end!==n)?(148|mask[a%4]):(l/2+2);
+    out.push([head,a,...unhex(s)]); a++; if(end>=n) return out; u=end; } }
+async function sha1hex(bytes){
+  if(crypto?.subtle) return hex(new Uint8Array(await crypto.subtle.digest('SHA-1', new Uint8Array(bytes))));
+  return sha1Fallback(bytes);
+}
+function sha1Fallback(msg){ // tiny SHA-1 for non-secure contexts
+  const m=[...msg], ml=m.length*8; m.push(0x80); while(m.length%64!==56) m.push(0);
+  for(let i=7;i>=0;i--) m.push(Math.floor(ml/2**(8*i))&255);
+  let h0=0x67452301,h1=0xEFCDAB89,h2=0x98BADCFE,h3=0x10325476,h4=0xC3D2E1F0; const w=new Array(80); const rol=(x,n)=>(x<<n)|(x>>>(32-n));
+  for(let i=0;i<m.length;i+=64){ for(let j=0;j<16;j++) w[j]=(m[i+4*j]<<24)|(m[i+4*j+1]<<16)|(m[i+4*j+2]<<8)|m[i+4*j+3];
+    for(let j=16;j<80;j++) w[j]=rol(w[j-3]^w[j-8]^w[j-14]^w[j-16],1);
+    let a=h0,b=h1,c=h2,d=h3,e=h4;
+    for(let j=0;j<80;j++){ const f=j<20?((b&c)|(~b&d)):j<40?(b^c^d):j<60?((b&c)|(b&d)|(c&d)):(b^c^d), k=j<20?0x5A827999:j<40?0x6ED9EBA1:j<60?0x8F1BBCDC:0xCA62C1D6;
+      const t=(rol(a,5)+f+e+k+w[j])|0; e=d; d=c; c=rol(b,30); b=a; a=t; }
+    h0=(h0+a)|0;h1=(h1+b)|0;h2=(h2+c)|0;h3=(h3+d)|0;h4=(h4+e)|0; }
+  return [h0,h1,h2,h3,h4].map(x=>(x>>>0).toString(16).padStart(8,'0')).join('');
+}
+function makeNonce(){ let s=''; for(let i=0;i<8;i++) s+=Math.floor(Math.random()*10).toString(16).padStart(2,'0'); return s; }
+async function buildAuth(nonce){
+  const t = (await sha1hex(unhex(AUTH_KEY+nonce))) + nonce;
+  const op = '0000';
+  const len = lenField(op.length/2 + t.length/2 + 2);
+  const body = len + op + t;
+  return frame('ff02' + body + crc16(unhex(body)));
+}
+const isAuthFrame = b => b[0] < 0x80 || [0x94,0xB4,0xD4,0xF4].includes(b[0]);
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const S = {
+  connected:false, demo:false, authed:false, ready:false,
+  unit:'F', live:0, preset:1, light:1, bri:100, aso:10, asoLeft:0, session:false, sessLeft:0,
+  haptic:true, ext:0, batt:null, charging:false,
+  presets:{}, // 0..5 -> {F,C,hold,profile,custom:[{time,F,C}x6]}
+  stats:null, info:{}, devStatus:null, clean:{state:0,left:0},
+  editing:1, gotStatus:false,
+};
+for(let i=0;i<=5;i++) S.presets[i]={F:0,C:0,hold:0,profile:0,custom:[]};
+const store = { get(k,d){ try{ const v=localStorage.getItem('openrig.'+k); return v==null?d:JSON.parse(v);}catch{return d;} },
+                set(k,v){ try{ localStorage.setItem('openrig.'+k, JSON.stringify(v)); }catch{} } };
+let PACE = store.get('pace', 90);
+// Paint cached presets instantly while the rig connects
+(()=>{ const c=store.get('presets',null); if(c) for(const k in c) S.presets[k]=Object.assign(S.presets[k],c[k]); })();
+
+/* =====================================================================
+   TRANSPORTS
+   ===================================================================== */
+class BleLink {
+  constructor(){ this.dev=null; this.w=null; this.n=null; this.onData=()=>{}; this.onDrop=()=>{}; this.userClose=false; }
+  async pick(){
+    this.dev = await navigator.bluetooth.requestDevice({
+      filters:[{services:[UUID.svc]}],
+      optionalServices:[UUID.svc,UUID.info,UUID.ota,UUID.battery]
+    });
+    store.set('lastId', this.dev.id); store.set('lastName', this.dev.name||'Switch²');
+  }
+  async remembered(){
+    if(!navigator.bluetooth?.getDevices) return null;
+    const id=store.get('lastId',null); if(!id) return null;
+    const list=await navigator.bluetooth.getDevices().catch(()=>[]);
+    return list.find(d=>d.id===id)||null;
+  }
+  async open(){
+    this.userClose=false;
+    if(!this._dropBound){ this._dropBound=true; this.dev.addEventListener('gattserverdisconnected',()=>this.onDrop(this.userClose)); }
+    const gatt = await this.dev.gatt.connect();
+    const svc = await gatt.getPrimaryService(UUID.svc);
+    [this.w, this.n] = await Promise.all([svc.getCharacteristic(UUID.write), svc.getCharacteristic(UUID.notify)]);
+    this._h = this._h || (e=>{ const v=e.target.value; this.onData(new Uint8Array(v.buffer.slice(v.byteOffset,v.byteOffset+v.byteLength))); });
+    this.n.removeEventListener('characteristicvaluechanged', this._h);
+    this.n.addEventListener('characteristicvaluechanged', this._h);
+    await this.n.startNotifications();
+  }
+  async write(bytes){
+    const data=new Uint8Array(bytes);
+    if(this.w.writeValueWithoutResponse) return this.w.writeValueWithoutResponse(data);
+    return this.w.writeValue(data);
+  }
+  async readInfo(){
+    const out={}; const dec=new TextDecoder();
+    try{ const s=await this.dev.gatt.getPrimaryService(UUID.info);
+      for(const [k,u] of [['model',UUID.model],['serial',UUID.serial],['hardware',UUID.hw],['firmware',UUID.sw],['maker',UUID.mfr]]){
+        try{ const c=await s.getCharacteristic(u); out[k]=dec.decode(await c.readValue()).replace(/\p{C}/gu,'').trim(); }catch{}
+      } }catch{}
+    return out;
+  }
+  close(){ this.userClose=true; try{ this.dev?.gatt?.disconnect(); }catch{} }
+  get name(){ return this.dev?.name || 'Switch²'; }
+}
+
+/* Simulated rig that speaks the same protocol — lets you try everything without hardware. */
+class DemoLink {
+  constructor(){ this.onData=()=>{}; this.onDrop=()=>{}; this.authBuf=0; this.t=null;
+    this.d={ unit:'F', preset:2, light:12, bri:80, aso:10, session:false, left:0, haptic:true, ext:2, batt:83, charging:false, live:78, clean:0,
+      p:{0:[0,0,0,161],1:[480,249,45,161],2:[530,277,45,177],3:[580,304,40,193],4:[620,327,35,209],5:[555,291,50,241]},
+      custom:{5:[{time:0,F:520,C:271},{time:10,F:560,C:293},{time:25,F:590,C:310},{time:40,F:540,C:282},{time:0,F:0,C:0},{time:0,F:0,C:0}]} };
+    for(const i of [0,1,2,3,4]) this.d.custom[i]=Array.from({length:6},()=>({time:0,F:0,C:0}));
+  }
+  get name(){ return 'Demo Switch²'; }
+  async pick(){} async open(){ await sleep(250); this.t=setInterval(()=>this.tick(),500); }
+  close(){ clearInterval(this.t); setTimeout(()=>this.onDrop(true),50); }
+  async readInfo(){ return {model:'Switch2 (demo)',serial:'DEMO-0000-0000',hardware:'1.0',firmware:'SW2-DEMO01 001',maker:'Simulated'}; }
+  emit(b){ setTimeout(()=>this.onData(new Uint8Array(b)), 25+Math.random()*30); }
+  status(){ const d=this.d; return [169,20,0,d.preset,0,0,d.light,d.session?170:0,d.aso,0,hi(Math.round(d.live)),lo(Math.round(d.live)),d.unit==='F'?15:12,d.left,d.haptic?170:0,d.ext,d.batt,d.charging?170:0,d.bri,169]; }
+  presetPkts(i){ const [F,C,h,pr]=this.d.p[i]; return [[163,8,i,hi(F),lo(F),hi(C),lo(C),163],[165,5,i,pr,165],[167,6,i,hi(h),lo(h),167]]; }
+  customPkts(i){ const c=this.d.custom[i]; const e=p=>[hi(p.F),lo(p.F),hi(p.C),lo(p.C),p.time];
+    return [[170,19,i,...e(c[0]),...e(c[1]),...e(c[2]),170],[171,19,i,...e(c[3]),...e(c[4]),...e(c[5]),171]]; }
+  async write(b){
+    const d=this.d;
+    if(isAuthFrame(b) && b[0]!==0x94 && b[0]!==0xB4 && b.length<=6 && b[0]<0x80){ // final auth chunk -> success
+      this.emit([0x12,0,0xff,0x02,0,0x10,0xff,0xef,0x80,0x00, 1,2,3,4,5,6,7,8, 0xab,0xcd]); return; }
+    if(isAuthFrame(b)) return;
+    switch(b[0]){
+      case 177: // clock -> push full state stack
+        this.emit(this.status());
+        for(let i=0;i<=5;i++){ this.presetPkts(i).forEach(p=>this.emit(p)); this.customPkts(i).forEach(p=>this.emit(p)); }
+        this.emit([225,6,1,0,0,0]); break;
+      case 178:
+        this.emit([162,17,hi(540),lo(540),hi(282),lo(282),hi(1284),lo(1284),0,23,0,61,177,12,0,3,hi(45),lo(45),162]);
+        this.emit([162,11,0,0,hi(41200),lo(41200),0,1,hi(9000),lo(9000),162]);
+        this.emit([162,13,hi(210),lo(210),hi(388),lo(388),hi(301),lo(301),hi(220),lo(220),hi(165),lo(165),162]); break;
+      case 179: { const p=b[2]; d.p[p][0]=u16(b,3); d.p[p][1]=u16(b,5); this.emit(this.presetPkts(p)[0]); break; }
+      case 181: { const p=b[2]; d.p[p][3]=b[3]; this.emit(this.presetPkts(p)[1]); break; }
+      case 183: { const p=b[2]; d.p[p][2]=u16(b,3); this.emit(this.presetPkts(p)[2]); break; }
+      case 186: case 187: { const p=b[2], off=b[0]===186?0:3; for(let k=0;k<3;k++){ const j=3+k*5; d.custom[p][off+k]={F:u16(b,j),C:u16(b,j+2),time:b[j+4]}; }
+        this.emit(this.customPkts(p)[b[0]===186?0:1]); break; }
+      case 185: { const wasOn=d.session; d.preset=b[3]; d.light=b[6]; d.aso=b[8]; d.unit=b[9]===15?'F':'C'; d.session=b[10]===170; d.haptic=b[11]===170; d.ext=b[12]; d.bri=b[13];
+        if(d.session&&!wasOn) d.left=d.p[d.preset][2]+15; if(!d.session) d.left=0; this.emit(this.status()); break; }
+      case 198: d.clean=b[2]===170?30:0; this.emit([241,5,0,d.clean,241]); break;
+      case 209: case 210: break;
+    }
+  }
+  tick(){ const d=this.d; const tgtF=d.p[d.preset][0], ambient=d.unit==='F'?78:26, tgt=d.unit==='F'?tgtF:d.p[d.preset][1];
+    if(d.clean>0){ d.clean--; this.emit([241,5,d.clean?0:170,d.clean,241]); d.live+= ((d.unit==='F'?200:93)-d.live)*.3; }
+    else if(d.session){ d.live += (tgt-d.live)*.35; if(Math.abs(tgt-d.live)<3){ d.left=Math.max(0,d.left-.5); if(d.left<=0) d.session=false; } }
+    else d.live += (ambient-d.live)*.08;
+    this.emit(this.status()); }
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+/* =====================================================================
+   LINK MANAGER — write queue, auth, parsing
+   ===================================================================== */
+let link=null, authChunks=[], authWait=null, lastWrite=0, q=Promise.resolve(), reconnectTries=0;
+const logEl=()=>document.getElementById('log');
+const logLines=[];
+function log(dir,b){ logLines.push(`${new Date().toISOString().slice(11,23)} ${dir} ${hex(b)}`); if(logLines.length>200) logLines.shift(); const el=logEl(); if(el && el.closest('details')?.open){ el.textContent=logLines.join('\n'); el.scrollTop=1e9; } }
+
+function send(bytes){ // serialized, paced writes
+  q = q.then(async()=>{ if(!link||!S.connected) return; const wait=PACE-(Date.now()-lastWrite); if(wait>0) await sleep(wait);
+    try{ await link.write(bytes); log('→',bytes); }catch(e){ log('!',[]); console.warn(e); } lastWrite=Date.now(); });
+  return q;
+}
+const sendAll = list => Promise.all(list.map(send));
+
+// Coalesce rapid changes (slider drags) per key: only the last value is sent.
+const pendingTimers={};
+function sendLatest(key, build, delay=120){ clearTimeout(pendingTimers[key]); markSync(key,true);
+  pendingTimers[key]=setTimeout(()=>{ delete pendingTimers[key]; const p=build(); (Array.isArray(p[0])?sendAll(p):send(p)); }, delay); }
+const syncing=new Set();
+function markSync(key,on){ on?syncing.add(key):syncing.delete(key); renderSync(); }
+
+function onData(b){
+  log('←',b);
+  if(!S.authed && isAuthFrame(b)){ authChunks.push(b);
+    if(b[0]<0x80){ const payload=authChunks.map(c=>hex(c.slice(2))).join(''); authChunks=[];
+      const ok = payload.substring(14,16)==='00'; authWait?.(ok); }
+    return; }
+  switch(b[0]){
+    case 162: parseStats(b); break;
+    case 163: { const p=S.presets[b[2]]; if(!p) break; p.F=u16(b,3); p.C=u16(b,5); markSync('t'+b[2],false); break; }
+    case 165: { const p=S.presets[b[2]]; if(!p) break; p.profile=b[3]; markSync('p'+b[2],false); break; }
+    case 167: { const p=S.presets[b[2]]; if(!p) break; p.hold=u16(b,3); markSync('h'+b[2],false); break; }
+    case 169: parseStatus(b); break;
+    case 170: case 171: { const p=S.presets[b[2]]; if(!p) break; const off=b[0]===170?0:3;
+      for(let k=0;k<3;k++){ const j=3+k*5; p.custom[off+k]={F:u16(b,j),C:u16(b,j+2),time:b[j+4]}; } markSync('c'+b[2],false); break; }
+    case 193: case 194: break; // name chunks
+    case 225: S.devStatus=[b[2],b[3],b[4],b[5]]; break;
+    case 241: S.clean={state:b[2]===0?1:b[2]===170?2:0, left:b[3]}; break;
+  }
+  scheduleRender();
+  if(b[0]>=163 && b[0]<=171) savePresetsSoon();
+}
+let pend=0; // time of the last optimistic settings change
+function parseStatus(b){
+  const dev={ preset:b[3], light:b[6], session:b[7]>0, aso:b[8], unit:b[12]===15?'F':'C', haptic:b[14]===170, ext:b[15], bri:b[18] };
+  Object.assign(S,{ asoLeft:b[9], live:u16(b,10), sessLeft:b[13], batt:b[16], charging:b[17]===170, gotStatus:true });
+  // Keep the user's just-made changes on screen until the rig reports them back (no flicker).
+  if(pend && Date.now()-pend<2000 && Object.keys(dev).some(k=>dev[k]!==S[k])) return;
+  pend=0; Object.assign(S,dev); markSync('s',false);
+}
+function parseStats(b){ const L=b[1]; S.stats=S.stats||{};
+  if(L===20){ Object.assign(S.stats,{favF:u16(b,2),favC:u16(b,4),cycles:u16(b,6),mostDay:u16(b,8),charges:u16(b,10),favProfile:b[12],favLight:b[13],resets:u16(b,16)}); }
+  else if(L===17||L===19){ Object.assign(S.stats,{favF:u16(b,2),favC:u16(b,4),cycles:u16(b,6),mostDay:u16(b,8),charges:u16(b,10),favProfile:b[12],favLight:b[13],resets:u16(b,14), favHold:L===19?u16(b,16):undefined}); }
+  else if(L===7){ S.stats.totalTime=u32(b,2); }
+  else if(L===11){ S.stats.totalTime=u32(b,2); S.stats.opTime=u32(b,6); }
+  else if(L===13){ S.stats.perPreset=[u16(b,2),u16(b,4),u16(b,6),u16(b,8),u16(b,10)]; }
+}
+let saveT; function savePresetsSoon(){ clearTimeout(saveT); saveT=setTimeout(()=>store.set('presets',S.presets),500); }
+
+async function startSession(l){
+  link=l; link.onData=onData; link.onDrop=onDrop;
+  setConn('busy','Connecting…');
+  await link.open();
+  S.connected=true; S.authed=false; S.gotStatus=false; authChunks=[];
+  setConn('busy','Pairing…');
+  // Auth (rig ignores commands until this succeeds). Don't block forever on odd firmware.
+  const ok = await new Promise(async res=>{ authWait=res; const pk=await buildAuth(makeNonce()); for(const p of pk) await link.write(p).then(()=>log('→',p)); setTimeout(()=>res(null),2500); });
+  authWait=null; S.authed=true;
+  if(ok===false) toast('Rig rejected pairing — trying anyway');
+  lastWrite=0; await send(Pkt.clock()); // clock sync makes the rig push its full state
+  setConn('on', link.name); reconnectTries=0;
+  showMain(); scheduleRender();
+  link.readInfo().then(i=>{ S.info=i; scheduleRender(); });
+  setTimeout(()=>send(Pkt.analytics()),600);
+}
+async function onDrop(userInitiated){
+  S.connected=false; S.authed=false; scheduleRender();
+  if(userInitiated || S.demo){ setConn('', 'Not connected'); showConnect(); return; }
+  if(reconnectTries<3){ reconnectTries++; setConn('busy',`Reconnecting (${reconnectTries})…`); await sleep(600*reconnectTries);
+    try{ await startSession(link); return; }catch{} }
+  setConn('','Disconnected'); toast('Lost connection to the rig'); showConnect();
+}
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+const $=id=>document.getElementById(id);
+function setConn(kind,text){ $('connDot').className='dot '+(kind||''); $('connText').textContent=text; }
+function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2400); }
+function showMain(){ $('vConnect').classList.add('hidden'); $('vMain').classList.remove('hidden'); $('nav').classList.remove('hidden'); }
+function showConnect(){ $('vConnect').classList.remove('hidden'); $('vMain').classList.add('hidden'); $('nav').classList.add('hidden'); refreshReconnect(); }
+const lim = () => LIMITS[S.unit];
+const pTemp = p => S.unit==='F'? p.F : p.C;
+const profName = id => (PROFILES.find(p=>p.id===id)||{}).name || '—';
+
+function profileIcon(pts){ const d=pts.map((p,i)=>`${i?'L':'M'}${2+p[0]*40} ${2+p[1]*14}`).join(' ');
+  return `<svg viewBox="0 0 44 18" fill="none"><path d="${d}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`; }
+
+function buildStatic(){
+  $('profiles').innerHTML = PROFILES.map(p=>`<button data-prof="${p.id}">${profileIcon(p.pts)}${p.name}</button>`).join('');
+  const lb = ids => ids.map(i=>`<button class="light" data-light="${i}"><div class="sw" style="background:${LIGHT_SW[i]||'#333'}"></div>${LIGHTS[i]}</button>`).join('');
+  $('lightsSolid').innerHTML = lb(SOLID_IDS);
+  $('lightsTheme').innerHTML = lb(Object.keys(LIGHTS).map(Number).filter(i=>!SOLID_IDS.includes(i)));
+  $('presets').innerHTML = [1,2,3,4,5].map(i=>`<button class="preset" data-preset="${i}"><span class="sync" id="sy${i}"></span><div class="n">${i}</div><div class="t" id="pt${i}">--</div><div class="p" id="pp${i}">—</div></button>`).join('');
+  let pts='<div class="h">#</div><div class="h">Time (s)</div><div class="h" id="ptsUnit">Temp</div>';
+  for(let i=0;i<6;i++) pts+=`<div class="lbl">${i+1}</div><input inputmode="numeric" data-pt="${i}" data-f="time"><input inputmode="numeric" data-pt="${i}" data-f="temp">`;
+  $('pts').innerHTML=pts;
+}
+
+let rq=false; function scheduleRender(){ if(rq) return; rq=true; requestAnimationFrame(()=>{ rq=false; render(); }); }
+function render(){
+  const u='°'+S.unit, active=S.presets[S.preset]||{}, tgt=pTemp(active)||0;
+  // hero
+  $('liveTemp').innerHTML = (S.gotStatus? S.live : '--') + `<sup>${u}</sup>`;
+  $('targetTemp').textContent = tgt? `Target ${tgt}${u} · ${active.hold||'--'}s hold` : 'Target --';
+  const frac = tgt? Math.max(0,Math.min(1,(S.live-(S.unit==='F'?70:21))/(tgt-(S.unit==='F'?70:21)))) : 0;
+  $('ringProg').style.strokeDashoffset = 452.4*(1-frac);
+  const sl=$('statusLine');
+  if(!S.connected){ sl.textContent='Offline'; sl.className='statusline'; }
+  else if(S.clean.left>0){ sl.textContent=`Cleaning · ${S.clean.left}s`; sl.className='statusline heat'; }
+  else if(S.session){ const near=Math.abs(S.live-tgt)<= (S.unit==='F'?8:4); sl.textContent= near? (S.sessLeft?`Ready · ${S.sessLeft}s left`:'Ready') : 'Heating…'; sl.className='statusline heat'; }
+  else { sl.textContent = S.charging? 'Idle · charging' : 'Idle'; sl.className='statusline'; }
+  const go=$('btnGo'); go.textContent = S.session? 'Stop' : 'Start heating'; go.className='go'+(S.session?' stop':''); go.disabled=!S.connected||!S.gotStatus;
+  $('mBatt').textContent = S.batt==null? '--' : `${S.batt}%${S.charging?' ⚡':''}`;
+  $('mLight').textContent = LIGHTS[S.light]||'--';
+  $('mPreset').textContent = S.gotStatus? S.preset : '--';
+  // presets
+  for(let i=1;i<=5;i++){ const p=S.presets[i], el=document.querySelector(`[data-preset="${i}"]`);
+    $('pt'+i).textContent = pTemp(p)? pTemp(p)+'°' : '--';
+    $('pp'+i).textContent = p.profile? profName(p.profile) : '—';
+    el.classList.toggle('active', S.gotStatus && S.preset===i); el.classList.toggle('editing', S.editing===i); }
+  renderEditor(); renderSync();
+  // lights
+  document.querySelectorAll('[data-light]').forEach(b=>b.classList.toggle('on', +b.dataset.light===S.light));
+  if(document.activeElement!==$('bri')) $('bri').value=S.bri; $('briVal').textContent=S.bri+'%';
+  // device
+  document.querySelectorAll('#unitSel button').forEach(b=>b.classList.toggle('on', b.dataset.u===S.unit));
+  document.querySelectorAll('#paceSel button').forEach(b=>b.classList.toggle('on', +b.dataset.p===PACE));
+  $('tgHaptic').classList.toggle('on', S.haptic);
+  $('asoVal').textContent = S.aso? `${S.aso} min` : 'Off';
+  $('extVal').textContent = S.ext? `+${S.ext}` : 'Off';
+  $('btnClean').textContent = S.clean.left>0? `Cleaning… ${S.clean.left}s (tap to stop)` : 'Start cleaning assist';
+  renderStats(); renderInfo();
+  if(logEl().closest('details').open) logEl().textContent=logLines.join('\n');
+}
+function renderEditor(){
+  const i=S.editing, p=S.presets[i], L=lim(), u='°'+S.unit;
+  $('edTitle').textContent=`Preset ${i}`;
+  const tR=$('edTempR'); tR.min=L.min; tR.max=L.max; if(document.activeElement!==tR) tR.value=pTemp(p)||L.min;
+  $('edTemp').textContent = pTemp(p)? pTemp(p)+u : '--';
+  if(document.activeElement!==$('edHoldR')) $('edHoldR').value=p.hold||45;
+  $('edHold').textContent = p.hold? p.hold+'s' : '--';
+  document.querySelectorAll('[data-prof]').forEach(b=>b.classList.toggle('on', +b.dataset.prof===p.profile));
+  const pr=PROFILES.find(x=>x.id===p.profile); $('profHint').textContent = pr? pr.desc : '';
+  const custom = p.profile===241; $('customBox').classList.toggle('hidden', !custom);
+  if(custom){ $('ptsUnit').textContent='Temp '+u;
+    document.querySelectorAll('[data-pt]').forEach(inp=>{ if(document.activeElement===inp) return; const pt=p.custom[+inp.dataset.pt]||{};
+      inp.value = inp.dataset.f==='time' ? (pt.F||pt.C? pt.time : '') : ((S.unit==='F'?pt.F:pt.C)||''); });
+    drawCurve(); }
+}
+function renderSync(){ for(let i=1;i<=5;i++){ const on=['t','h','p','c'].some(k=>syncing.has(k+i)); const el=$('sy'+i); if(el) el.classList.toggle('on',on); }
+  const e=S.editing, any=['t','h','p','c'].some(k=>syncing.has(k+e)); $('edSync').textContent= any? 'Saving…' : (S.connected? 'Synced' : ''); $('edSync').style.color= any? 'var(--heat2)':'var(--faint)'; }
+function curvePoints(){ const p=S.presets[S.editing]; return (p.custom||[]).filter(x=>x&&(x.F||x.C)).map(x=>({t:x.time, v:S.unit==='F'?x.F:x.C})).sort((a,b)=>a.t-b.t); }
+function drawCurve(){ const pts=curvePoints(), L=lim(), svg=$('curve'); if(!pts.length){ svg.innerHTML=''; return; }
+  const maxT=Math.max(S.presets[S.editing].hold||45, ...pts.map(p=>p.t), 1);
+  const vs=pts.map(p=>p.v), pad=S.unit==='F'?25:14, lo=Math.max(L.min,Math.min(...vs)-pad), hi_=Math.min(L.max,Math.max(...vs)+pad);
+  const X=t=>34+t/maxT*256, Y=v=>108-(v-lo)/Math.max(1,hi_-lo)*92;
+  const path=pts.map((p,i)=>`${i?'L':'M'}${X(p.t)} ${Y(p.v)}`).join(' ');
+  svg.innerHTML=`<text x="4" y="20" fill="#5b6370" font-size="10">${Math.round(hi_)}°</text><text x="4" y="112" fill="#5b6370" font-size="10">${Math.round(lo)}°</text>`+
+    `<line x1="34" x2="290" y1="${Y(hi_)}" y2="${Y(hi_)}" stroke="#262b33"/><line x1="34" x2="290" y1="108" y2="108" stroke="#262b33"/><path d="${path} L${X(pts[pts.length-1].t)} 115 L${X(pts[0].t)} 115 Z" fill="rgba(255,122,47,.12)"/><path d="${path}" stroke="#ff7a2f" stroke-width="2.5" fill="none" vector-effect="non-scaling-stroke"/>`+
+    pts.map(p=>`<circle cx="${X(p.t)}" cy="${Y(p.v)}" r="4" fill="#ffb03a"/>`).join(''); }
+function renderStats(){ const s=S.stats, u='°'+S.unit; if(!s){ $('stats').innerHTML='<div class="lbl">Tap Refresh to load usage.</div>'; return; }
+  const cell=(k,v)=>`<div class="stat"><div class="k">${k}</div><div class="v">${v??'--'}</div></div>`;
+  let h=cell('Heat cycles',s.cycles)+cell('Most in a day',s.mostDay)+cell('Favorite temp', s.favF? (S.unit==='F'?s.favF:s.favC)+u : '--')+cell('Favorite mode', profName(s.favProfile))
+    +cell('Favorite lights', LIGHTS[s.favLight]||'--')+cell('Charge cycles',s.charges);
+  if(s.perPreset) h+=s.perPreset.map((n,i)=>cell(`Preset ${i+1} uses`,n)).join('');
+  if(s.totalTime!=null) h+=cell('Total time (raw)',s.totalTime);
+  $('stats').innerHTML=h; }
+function renderInfo(){ const i=S.info||{}, rows=[['Name',link?.name],['Model',i.model],['Serial',i.serial],['Firmware',i.firmware],['Hardware',i.hardware],['Status bytes',S.devStatus?.join(' ')]];
+  $('devInfo').innerHTML=rows.filter(r=>r[1]).map(r=>`<div>${r[0]}</div><div>${esc(r[1])}</div>`).join(''); }
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- actions (optimistic: UI updates instantly, rig confirms) ---------- */
+// The settings packet carries every setting at once, so it is always built from the full current state.
+function settingsSnapshot(over={}){ return Object.assign({preset:S.preset,light:S.light,aso:S.aso,unit:S.unit,session:S.session||S.sessLeft>0,haptic:S.haptic,ext:S.ext,bri:S.bri},over); }
+function pushSettings(over={}, key='s', delay=60){
+  if(!S.gotStatus){ toast('Waiting for the rig…'); return; }
+  pend=Date.now()+delay;
+  Object.assign(S, over.preset!=null?{preset:over.preset}:{}, over.light!=null?{light:over.light}:{}, over.bri!=null?{bri:over.bri}:{},
+    over.aso!=null?{aso:over.aso}:{}, over.unit?{unit:over.unit}:{}, over.haptic!=null?{haptic:over.haptic}:{}, over.ext!=null?{ext:over.ext}:{}, over.session!=null?{session:over.session}:{});
+  scheduleRender(); sendLatest(key, ()=>Pkt.settings(settingsSnapshot()), delay);
+}
+function setTemp(i,val){ const L=lim(); val=Math.max(L.min,Math.min(L.max,Math.round(val))); const p=S.presets[i];
+  if(S.unit==='F'){ p.F=val; p.C=toC(val); } else { p.C=val; p.F=toF(val); }
+  scheduleRender(); sendLatest('t'+i, ()=>Pkt.temp(i,p.F,p.C)); }
+function setHold(i,val){ val=Math.max(LIMITS.hold.min,Math.min(LIMITS.hold.max,Math.round(val))); S.presets[i].hold=val; scheduleRender(); sendLatest('h'+i, ()=>Pkt.hold(i,val)); }
+function setProfile(i,id){ S.presets[i].profile=id; scheduleRender(); sendLatest('p'+i, ()=>Pkt.profile(i,id), 0);
+  if(id===241 && !curvePoints().length){ const p=S.presets[i]; const base=p.F||520; p.custom=[{time:0,F:base,C:toC(base)},{time:Math.round((p.hold||45)/2),F:base+30,C:toC(base+30)},{time:p.hold||45,F:base-20,C:toC(base-20)}]; scheduleRender(); } }
+function sendCurve(){ const i=S.editing, p=S.presets[i]; const pts=(p.custom||[]).filter(x=>x&&(x.F||x.C)).sort((a,b)=>a.time-b.time).slice(0,6);
+  if(pts.length<2){ toast('Add at least two points'); return; }
+  markSync('c'+i,true); send(Pkt.profile(i,241)); sendAll(Pkt.custom(i,pts)).then(()=>toast('Custom curve sent')); }
+
+/* ---------- wire up ---------- */
+function bind(){
+  document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{ document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+    ['Home','Lights','Device'].forEach(t=>$('t'+t).classList.toggle('hidden', t!==b.dataset.tab)); if(b.dataset.tab==='Device'&&S.connected&&!S.stats) send(Pkt.analytics()); window.scrollTo(0,0); });
+  $('presets').onclick=e=>{ const b=e.target.closest('[data-preset]'); if(!b) return; const i=+b.dataset.preset;
+    if(S.preset!==i && S.gotStatus) pushSettings({preset:i},'s',0); S.editing=i; scheduleRender(); };
+  document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{ const d=+b.dataset.d, k=b.dataset.step, i=S.editing;
+    if(k==='temp') setTemp(i,(pTemp(S.presets[i])||lim().min)+(S.unit==='F'?d:Math.round(d/2)||Math.sign(d)));
+    if(k==='hold') setHold(i,(S.presets[i].hold||45)+d);
+    if(k==='aso'){ let v=S.aso+d; if(v<LIMITS.aso.min) v=d<0?0:LIMITS.aso.min; v=Math.min(LIMITS.aso.max,v); pushSettings({aso:v},'s',250); }
+    if(k==='ext') pushSettings({ext:Math.max(0,Math.min(9,S.ext+d))},'s',250); });
+  $('edTempR').oninput=e=>setTemp(S.editing,+e.target.value);
+  $('edHoldR').oninput=e=>setHold(S.editing,+e.target.value);
+  $('profiles').onclick=e=>{ const b=e.target.closest('[data-prof]'); if(b) setProfile(S.editing,+b.dataset.prof); };
+  $('pts').oninput=e=>{ const inp=e.target.closest('[data-pt]'); if(!inp) return; const p=S.presets[S.editing], k=+inp.dataset.pt;
+    p.custom[k]=p.custom[k]||{time:0,F:0,C:0}; const v=parseInt(inp.value,10)||0;
+    if(inp.dataset.f==='time') p.custom[k].time=Math.max(0,Math.min(255,v));
+    else { if(S.unit==='F'){ p.custom[k].F=v; p.custom[k].C=v?toC(v):0; } else { p.custom[k].C=v; p.custom[k].F=v?toF(v):0; } }
+    drawCurve(); };
+  $('btnSaveCurve').onclick=sendCurve;
+  $('btnGo').onclick=()=>pushSettings({session:!S.session},'s',0);
+  $('bri').oninput=e=>{ $('briVal').textContent=e.target.value+'%'; pushSettings({bri:+e.target.value},'s',120); };
+  document.querySelectorAll('.lights').forEach(g=>g.onclick=e=>{ const b=e.target.closest('[data-light]'); if(b) pushSettings({light:+b.dataset.light},'s',0); });
+  $('unitSel').onclick=e=>{ const b=e.target.closest('[data-u]'); if(b&&b.dataset.u!==S.unit) pushSettings({unit:b.dataset.u},'s',0); };
+  $('paceSel').onclick=e=>{ const b=e.target.closest('[data-p]'); if(!b) return; PACE=+b.dataset.p; store.set('pace',PACE); scheduleRender(); };
+  $('tgHaptic').onclick=()=>pushSettings({haptic:!S.haptic},'s',0);
+  $('btnClean').onclick=()=>{ const on=!(S.clean.left>0); send(Pkt.cleaning(on)); if(!on) S.clean={state:0,left:0}; toast(on?'Cleaning assist started':'Cleaning assist stopped'); scheduleRender(); };
+  $('btnStats').onclick=()=>{ if(S.connected) send(Pkt.analytics()); };
+  $('btnName').onclick=()=>{ const v=$('nameIn').value.trim(); if(!v) return; sendAll(Pkt.name(v)).then(()=>toast('Name sent — reconnect to see it')); };
+  $('btnDisconnect').onclick=()=>link?.close();
+  $('connPill').onclick=()=>{ if(!S.connected) $('btnConnect').click(); };
+  $('btnConnect').onclick=async()=>{ S.demo=false; const l=new BleLink(); try{ await l.pick(); await startSession(l); }catch(e){ if(e?.name!=='NotFoundError') toast(e?.message||'Connection failed'); setConn('','Not connected'); } };
+  $('btnReconnect').onclick=async()=>{ const l=new BleLink(); try{ l.dev=await l.remembered(); if(!l.dev) throw new Error('Rig not found — use Connect'); await startSession(l); }catch(e){ toast(e.message||'Reconnect failed'); setConn('','Not connected'); } };
+  $('btnDemo').onclick=async()=>{ S.demo=true; await startSession(new DemoLink()); };
+  document.querySelector('details').ontoggle=()=>render();
+}
+async function refreshReconnect(){ const b=$('btnReconnect'); if(!navigator.bluetooth?.getDevices) return; const name=store.get('lastName',null), id=store.get('lastId',null);
+  if(!id) return; const list=await navigator.bluetooth.getDevices().catch(()=>[]); if(list.some(d=>d.id===id)){ b.textContent=`Reconnect to ${name}`; b.classList.remove('hidden'); } }
+function checkSupport(){ const w=$('noBle');
+  if(!navigator.bluetooth){ const ios=/iPhone|iPad|iPod/.test(navigator.userAgent);
+    w.innerHTML = ios? '<b>This browser can’t use Bluetooth.</b> On iPhone, open this page in <b>Bluefy</b> or <b>LabLink</b> from the App Store. Demo mode works here.'
+                     : '<b>This browser can’t use Bluetooth.</b> Use Chrome or Edge on Android, Mac, Windows or Linux. Demo mode works here.';
+    w.classList.remove('hidden'); $('btnConnect').disabled=true; $('btnConnect').style.opacity=.4; } }
+
+buildStatic(); bind(); checkSupport(); refreshReconnect(); render();
+</script>
+</body>
+</html>
