@@ -140,6 +140,8 @@ nav button.on{color:var(--text)}
     <div class="warn hidden" id="noBle"></div>
     <button class="btn primary" id="btnConnect">Connect</button>
     <button class="btn hidden" id="btnReconnect">Reconnect</button>
+    <div class="warn hidden" id="connErr"></div>
+    <button class="btn" id="btnScanAll">Scan all devices</button>
     <button class="btn" id="btnDemo">Try demo mode</button>
     <div class="foot">Unofficial, open-source controller. Not affiliated with Dr. Dabber. Firmware updates and factory reset are left to the official app.</div>
   </section>
@@ -361,11 +363,11 @@ let PACE = store.get('pace', 90);
    ===================================================================== */
 class BleLink {
   constructor(){ this.dev=null; this.w=null; this.n=null; this.onData=()=>{}; this.onDrop=()=>{}; this.userClose=false; }
-  async pick(){
-    this.dev = await navigator.bluetooth.requestDevice({
-      filters:[{services:[UUID.svc]}],
-      optionalServices:[UUID.svc,UUID.info,UUID.ota,UUID.battery]
-    });
+  async pick(wide=false){
+    const optionalServices=[UUID.svc,UUID.info,UUID.ota,UUID.battery];
+    this.dev = await navigator.bluetooth.requestDevice(wide
+      ? {acceptAllDevices:true, optionalServices}                       // fallback: list everything nearby
+      : {filters:[{services:[UUID.svc]},{namePrefix:'Switch'},{namePrefix:'SW2'},{namePrefix:'Dr'}], optionalServices});
     store.set('lastId', this.dev.id); store.set('lastName', this.dev.name||'Switch²');
   }
   async remembered(){
@@ -541,6 +543,7 @@ async function onDrop(userInitiated){
    ===================================================================== */
 const $=id=>document.getElementById(id);
 function setConn(kind,text){ $('connDot').className='dot '+(kind||''); $('connText').textContent=text; }
+function showErr(h){ const el=$('connErr'); el.innerHTML=h; el.classList.toggle('hidden',!h); }
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2400); }
 function showMain(){ $('vConnect').classList.add('hidden'); $('vMain').classList.remove('hidden'); $('nav').classList.remove('hidden'); }
 function showConnect(){ $('vConnect').classList.remove('hidden'); $('vMain').classList.add('hidden'); $('nav').classList.add('hidden'); refreshReconnect(); }
@@ -686,7 +689,17 @@ function bind(){
   $('btnName').onclick=()=>{ const v=$('nameIn').value.trim(); if(!v) return; sendAll(Pkt.name(v)).then(()=>toast('Name sent — reconnect to see it')); };
   $('btnDisconnect').onclick=()=>link?.close();
   $('connPill').onclick=()=>{ if(!S.connected) $('btnConnect').click(); };
-  $('btnConnect').onclick=async()=>{ S.demo=false; const l=new BleLink(); try{ await l.pick(); await startSession(l); }catch(e){ if(e?.name!=='NotFoundError') toast(e?.message||'Connection failed'); setConn('','Not connected'); } };
+  const connectWith = async (wide)=>{ S.demo=false; const l=new BleLink(); showErr('');
+    setConn('busy','Searching…');
+    try{ await l.pick(wide); await startSession(l); }
+    catch(e){ setConn('','Not connected'); console.warn(e);
+      const name=e?.name||'Error', msg=e?.message||String(e);
+      if(name==='NotFoundError' && /cancel/i.test(msg)) showErr('Search cancelled.');
+      else if(name==='NotFoundError') showErr('No Switch² found. Make sure it\'s on, nearby, and <b>not connected to LabLink or the official app</b> (fully close those apps, or turn the rig off and on). Then try again, or use “Scan all devices”.');
+      else if(name==='SecurityError') showErr('Bluetooth was blocked. Allow Bluetooth for this browser in iPhone Settings, then reload.');
+      else showErr(`${esc(name)}: ${esc(msg)}`); } };
+  $('btnConnect').onclick=()=>connectWith(false);
+  $('btnScanAll').onclick=()=>connectWith(true);
   $('btnReconnect').onclick=async()=>{ const l=new BleLink(); try{ l.dev=await l.remembered(); if(!l.dev) throw new Error('Rig not found — use Connect'); await startSession(l); }catch(e){ toast(e.message||'Reconnect failed'); setConn('','Not connected'); } };
   $('btnDemo').onclick=async()=>{ S.demo=true; await startSession(new DemoLink()); };
   document.querySelector('details').ontoggle=()=>render();
