@@ -44,6 +44,7 @@ main{flex:1;padding:6px 14px calc(92px + var(--safe-b));display:flex;flex-direct
 .sub{color:var(--dim);font-size:13px;margin-top:6px;text-align:center}
 .statusline{margin-top:4px;font-size:14px;font-weight:600;min-height:20px}
 .statusline.heat{color:var(--heat2)}
+.statusline.ready{color:var(--ok)}
 .go{margin-top:12px;width:100%;padding:16px;border-radius:14px;font-weight:700;font-size:17px;background:linear-gradient(135deg,var(--heat),var(--heat2));color:#1a0d00;transition:transform .08s}
 .go:active{transform:scale(.98)}
 .go.stop{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
@@ -451,14 +452,20 @@ class DemoLink {
       case 186: case 187: { const p=b[2], off=b[0]===186?0:3; for(let k=0;k<3;k++){ const j=3+k*5; d.custom[p][off+k]={F:u16(b,j),C:u16(b,j+2),time:b[j+4]}; }
         this.emit(this.customPkts(p)[b[0]===186?0:1]); break; }
       case 185: { const wasOn=d.session; d.preset=b[3]; d.light=b[6]; d.aso=b[8]; d.unit=b[9]===15?'F':'C'; d.session=b[10]===170; d.haptic=b[11]===170; d.ext=b[12]; d.bri=b[13];
-        if(d.session&&!wasOn) d.left=d.p[d.preset][2]+15; if(!d.session) d.left=0; this.emit(this.status()); break; }
+        if(d.session&&!wasOn){ d.left=d.p[d.preset][2]+10*d.ext; d.holding=false; } if(!d.session) d.left=0; this.emit(this.status()); break; }
       case 198: d.clean=b[2]===170?30:0; this.emit([241,5,0,d.clean,241]); break;
       case 209: case 210: break;
     }
   }
   tick(){ const d=this.d; const tgtF=d.p[d.preset][0], ambient=d.unit==='F'?78:26, tgt=d.unit==='F'?tgtF:d.p[d.preset][1];
     if(d.clean>0){ d.clean--; this.emit([241,5,d.clean?0:170,d.clean,241]); d.live+= ((d.unit==='F'?200:93)-d.live)*.3; }
-    else if(d.session){ d.live += (tgt-d.live)*.35; if(Math.abs(tgt-d.live)<3){ d.left=Math.max(0,d.left-.5); if(d.left<=0) d.session=false; } }
+    else if(d.session){
+      if(!d.holding){ d.live += (tgt-d.live)*.35; if(Math.abs(tgt-d.live)<3) d.holding=true; }
+      else { // during the hold the heating mode moves the temperature (this is what used to make the UI flicker)
+        const full=d.p[d.preset][2]+10*d.ext, prog=1-d.left/full, prof=d.p[d.preset][3], sw=(d.unit==='F'?40:22);
+        const off= prof===177? sw*prog : prof===193? -sw*prog : prof===209? -sw*Math.sin(Math.PI*prog) : prof===225? sw*Math.sin(Math.PI*prog) : 0;
+        d.live += (tgt+off+(Math.random()*4-2)-d.live)*.5;
+        d.left=Math.max(0,d.left-.5); if(d.left<=0){ d.session=false; d.holding=false; } } }
     else d.live += (ambient-d.live)*.08;
     this.emit(this.status()); }
 }
@@ -513,7 +520,7 @@ function parseStatus(b){
   Object.assign(S,{ asoLeft:b[9], live:u16(b,10), sessLeft:b[13], batt:b[16], charging:b[17]===170, gotStatus:true });
   // Keep the user's just-made changes on screen until the rig reports them back (no flicker).
   if(pend && Date.now()-pend<2000 && Object.keys(dev).some(k=>dev[k]!==S[k])) return;
-  pend=0; Object.assign(S,dev); markSync('s',false);
+  pend=0; Object.assign(S,dev); markSync('s',false); trackSession();
 }
 function parseStats(b){ const L=b[1]; S.stats=S.stats||{};
   if(L===20){ Object.assign(S.stats,{favF:u16(b,2),favC:u16(b,4),cycles:u16(b,6),mostDay:u16(b,8),charges:u16(b,10),favProfile:b[12],favLight:b[13],resets:u16(b,16)}); }
@@ -575,19 +582,46 @@ function buildStatic(){
   $('pts').innerHTML=pts;
 }
 
+/* ---------- session phase tracking (idle → heat → hold → done) ---------- */
+const SX={phase:'idle', start:0, maxFrac:0, heatLeft:0, full:0, anchorT:0, anchorRem:0};
+function holdRemaining(){ return SX.phase==='hold'? Math.max(0, SX.anchorRem-(Date.now()-SX.anchorT)/1000) : 0; }
+function heatFrac(tgt){ if(!tgt) return SX.maxFrac; const span=tgt-SX.start;
+  const f= span<=0? 1 : (Math.min(tgt,S.live)-SX.start)/span; SX.maxFrac=Math.max(SX.maxFrac, Math.max(0,Math.min(1,f))); return SX.maxFrac; }
+function trackSession(){
+  if(!S.session){ if(SX.phase!=='idle') Object.assign(SX,{phase:'idle',maxFrac:0,heatLeft:0,full:0}); return; }
+  const now=Date.now(), left=S.sessLeft||0;
+  if(SX.phase==='idle') Object.assign(SX,{phase:'heat', start:S.live>0?S.live:0, maxFrac:0, heatLeft:left});
+  if(SX.phase==='heat'){
+    // The rig holds its timer at full while heating and starts counting down once it's ready.
+    if(SX.heatLeft>0 && left>0 && left<SX.heatLeft){
+      Object.assign(SX,{phase:'hold', full:Math.max(SX.heatLeft,left), anchorT:now, anchorRem:left}); }
+    else SX.heatLeft=Math.max(SX.heatLeft,left);
+  } else if(SX.phase==='hold'){
+    if(left===0){ SX.phase='done'; return; }
+    const local=holdRemaining();
+    if(left>local+0.5 || Math.abs(local-left)>1.5){ SX.anchorT=now; SX.anchorRem=left; SX.full=Math.max(SX.full,left); } // resync / session extended
+  }
+}
+setInterval(()=>{ if(SX.phase==='hold'||SX.phase==='heat') scheduleRender(); }, 250);
+
 let rq=false; function scheduleRender(){ if(rq) return; rq=true; requestAnimationFrame(()=>{ rq=false; render(); }); }
 function render(){
   const u='°'+S.unit, active=S.presets[S.preset]||{}, tgt=pTemp(active)||0;
   // hero
   $('liveTemp').innerHTML = (S.gotStatus? S.live : '--') + `<sup>${u}</sup>`;
   $('targetTemp').textContent = tgt? `Target ${tgt}${u} · ${active.hold||'--'}s hold` : 'Target --';
-  const frac = tgt? Math.max(0,Math.min(1,(S.live-(S.unit==='F'?70:21))/(tgt-(S.unit==='F'?70:21)))) : 0;
-  $('ringProg').style.strokeDashoffset = 452.4*(1-frac);
-  const sl=$('statusLine');
+  // Ring + status follow the session phase (from the rig's countdown), not live-temp proximity,
+  // so heating modes that move the temperature during the hold don't make it flicker.
+  let frac=0, ringColor='url(#heatgrad)'; const sl=$('statusLine');
   if(!S.connected){ sl.textContent='Offline'; sl.className='statusline'; }
   else if(S.clean.left>0){ sl.textContent=`Cleaning · ${S.clean.left}s`; sl.className='statusline heat'; }
-  else if(S.session){ const near=Math.abs(S.live-tgt)<= (S.unit==='F'?8:4); sl.textContent= near? (S.sessLeft?`Ready · ${S.sessLeft}s left`:'Ready') : 'Heating…'; sl.className='statusline heat'; }
+  else if(SX.phase==='heat'){ frac=heatFrac(tgt); sl.textContent=`Heating · ${Math.round(frac*100)}%`; sl.className='statusline heat'; }
+  else if(SX.phase==='hold'){ const rem=holdRemaining(); frac=SX.full? rem/SX.full : 0; ringColor='var(--ok)';
+    sl.textContent=`Ready · ${Math.ceil(rem)}s`; sl.className='statusline ready'; }
+  else if(SX.phase==='done'){ sl.textContent='Done'; sl.className='statusline'; }
+  else if(S.session){ sl.textContent='Starting…'; sl.className='statusline heat'; }
   else { sl.textContent = S.charging? 'Idle · charging' : 'Idle'; sl.className='statusline'; }
+  const ring=$('ringProg'); ring.style.stroke=ringColor; ring.style.strokeDashoffset = 452.4*(1-Math.max(0,Math.min(1,frac)));
   const go=$('btnGo'); go.textContent = S.session? 'Stop' : 'Start heating'; go.className='go'+(S.session?' stop':''); go.disabled=!S.connected||!S.gotStatus;
   $('mBatt').textContent = S.batt==null? '--' : `${S.batt}%${S.charging?' ⚡':''}`;
   $('mLight').textContent = LIGHTS[S.light]||'--';
